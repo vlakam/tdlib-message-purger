@@ -50,7 +50,7 @@ const main = async () => {
             });
         }
     } catch (e) {
-        console.err(e);
+        console.error(e);
     }
 
     console.log('Moving out');
