@@ -12,43 +12,60 @@ const client = new Client(new TDLib('./libtdjson.so'), {
     apiHash: API_HASH,
 });
 
+function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const findAllMessages = async () => {
+    let messages = [];
+    let from = 0;
+    while (true) {
+        await timeout(5);
+        const response = await client.invoke({
+            _: 'searchChatMessages',
+            chat_id: CHAT_ID,
+            from_message_id: from,
+            sender: { _: 'messageSenderUser', user_id: SENDER_ID },
+            limit: 100
+        });
+
+        if (response.messages.length === 0) break;
+        from = response.messages[response.messages.length - 1].id;
+
+        const messageIds = response.messages
+            .filter(msg => msg.can_be_deleted_for_all_users)
+            .map((msg) => {
+                if (msg.content && msg.content.text) {
+                    console.log(`Adding to delete ${msg.id}: ${msg.content.text.text}`);
+                } else {
+                    console.log(`Adding to delete ${msg.id}`);
+                }
+
+                return msg.id;
+            });
+
+        messages = [...messages, ...messageIds];
+    }
+
+    return messages;
+}
+
 const main = async () => {
     await client.connect();
     await client.login();
 
     try {
-        while(true) {
-            const response = await client.invoke({
-                _: 'searchChatMessages',
-                chat_id: CHAT_ID,
-                sender_user_id: SENDER_ID,
-                limit: 100
-            });
-
-            const messageIds = response.messages.reduce((acc, message) => {
-                if (message.can_be_deleted_for_all_users) {
-                    acc.push(message.id);
-                    if (message.content && message.content.text) {
-                        console.log(`Deleting ${message.id}: ${message.content.text.text}`);
-                    } else {
-                        console.log(`Deleting ${message.id}`);
-                    }
-                }
-
-                return acc;
-            }, []);
-
-            if (messageIds.length === 0) {
-                break;
-            }
-
-            const deleteResponse = await client.invoke({
-                _: 'deleteMessages',
-                chat_id: CHAT_ID,
-                revoke: true,
-                message_ids: messageIds
-            });
-        }
+        await timeout(500);
+        const messages = await findAllMessages();
+        console.log(`Deleting ${messages.length} messages in 15 seconds. Last time to cancel`);
+        await timeout(15000);
+        const deleteResponse = await client.invoke({
+            _: 'deleteMessages',
+            chat_id: CHAT_ID,
+            revoke: true,
+            message_ids: messages
+        });
+        console.log(deleteResponse);
     } catch (e) {
         console.error(e);
     }
