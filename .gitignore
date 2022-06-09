@@ -1,0 +1,5 @@
+.env
+/_td_database/
+/_td_files/
+libtdjson.so
+node_modules/
